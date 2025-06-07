@@ -1,10 +1,10 @@
 # User Management API
 
-A robust and scalable User Management API built with .NET Core, Dapper, and SQL Server (or your preferred relational database). This API provides comprehensive CRUD (Create, Read, Update, Delete) operations for user data, including authentication (login and registration) with JWT tokens. API documentation is provided via Swagger/OpenAPI.
+A robust and scalable User Management API built with .NET Core, Dapper, and SQL Server (or your preferred relational database). This API provides comprehensive CRUD (Create, Read, Update, Delete) operations for user data, including authentication (login and registration). API documentation is provided via Swagger.
 
 ## 🚀 Features
 
-* **User Authentication**: Secure user registration and login with JWT token generation.
+* **User Authentication**: Secure user registration and login.
 
 * **User Management**:
 
@@ -38,9 +38,8 @@ A robust and scalable User Management API built with .NET Core, Dapper, and SQL 
 
 * **Dapper ORM**: High-performance data access using Dapper for efficient interaction with the database.
 
-* **Swagger/OpenAPI**: Automatic generation of interactive API documentation for easy testing and consumption.
+* **Swagger**: Automatic generation of interactive API documentation for easy testing and consumption.
 
-* **Middleware-based Error Handling**: Centralized exception handling for clean error responses.
 
 ## 💻 Technologies Used
 
@@ -50,13 +49,9 @@ A robust and scalable User Management API built with .NET Core, Dapper, and SQL 
 
 * **Dapper**: A simple object mapper for .NET.
 
-* **Swashbuckle.AspNetCore**: For Swagger/OpenAPI documentation.
+* **Swashbuckle.AspNetCore**: For Swagger
 
 * **Microsoft.Data.SqlClient** (or equivalent for PostgreSQL/MySQL)
-
-* **JWT (JSON Web Tokens)**: For authentication.
-
-* **BCrypt.Net**: For password hashing.
 
 ## 🛠️ Getting Started
 
