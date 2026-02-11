@@ -1,60 +1,55 @@
-To make this as easy as possible for you, here is the raw **Markdown (.md)** code block.
+# Dapper Micro-ORM: Complete Technical Reference
 
-You can save this by copying the text below, opening a text editor (like Notepad), and saving the file with the extension **.md** (e.g., `Dapper_CheatSheet.md`).
-
-```markdown
-# Dapper Micro-ORM Documentation
-
-Dapper is a high-performance "Micro-ORM" for .NET that extends the `IDbConnection` interface. This document covers core methods, parameter handling, and advanced features.
+Dapper is a high-performance "Micro-ORM" for .NET that extends the `IDbConnection` interface. It provides a thin wrapper around ADO.NET to map SQL results directly to C# objects with maximum efficiency.
 
 ---
 
-## 1. Core Dapper Methods
-All methods have an `Async` version (e.g., `QueryAsync`) for non-blocking I/O.
+## 1. Core Execution Methods
+Dapper offers several methods to handle different data requirements. All methods have an `Async` equivalent (e.g., `QueryAsync`).
 
-| Method | Purpose | Returns |
+| Method | Use Case | Return Type |
 | :--- | :--- | :--- |
 | **Execute** | `INSERT`, `UPDATE`, `DELETE`, or DDL. | `int` (Rows affected) |
 | **Query<T>** | Standard `SELECT` for multiple records. | `IEnumerable<T>` |
-| **QueryFirst<T>** | First row; throws if empty. | `T` |
-| **QueryFirstOrDefault<T>** | First row; `null` if empty. | `T?` |
-| **QuerySingle<T>** | Exactly one row; throws if 0 or >1. | `T` |
-| **QuerySingleOrDefault<T>** | 0 or 1 row; throws if >1. | `T?` |
-| **QueryMultiple** | Multiple SQL result sets in one trip. | `GridReader` |
+| **QueryFirst<T>** | Fetch first row; throws exception if empty. | `T` |
+| **QueryFirstOrDefault<T>** | Fetch first row; returns `null` if empty. | `T?` |
+| **QuerySingle<T>** | Expects exactly one row; throws if 0 or >1. | `T` |
+| **QuerySingleOrDefault<T>** | Expects 0 or 1 row; throws if >1. | `T?` |
+| **QueryMultiple** | Executes multiple SQL statements in one call. | `GridReader` |
 
 ---
 
-## 2. Parameter Handling
+## 2. Parameter Management
 
-### Anonymous Objects
-The standard way to pass values.
+### A. Anonymous Objects
+The most common way to pass parameters securely and prevent SQL Injection.
 ```csharp
 var sql = "UPDATE Users SET Email = @email WHERE Id = @id";
-connection.Execute(sql, new { email = "test@io.com", id = 5 });
+connection.Execute(sql, new { email = "hello@world.com", id = 10 });
 
 ```
 
-### DynamicParameters
+### B. DynamicParameters
 
-Used for **Output Parameters** or specifying database types explicitly.
+Used for advanced scenarios like **Output Parameters** or specifying database types.
 
 ```csharp
 var p = new DynamicParameters();
-p.Add("@Name", "Alice");
+p.Add("@UserName", "JohnDoe");
 p.Add("@NewId", dbType: DbType.Int32, direction: ParameterDirection.Output);
 
-connection.Execute("sp_InsertUser", p, commandType: CommandType.StoredProcedure);
+connection.Execute("sp_CreateUser", p, commandType: CommandType.StoredProcedure);
 int id = p.Get<int>("@NewId");
 
 ```
 
-### Collection Support (IN Clause)
+### C. List Support (The "IN" Clause)
 
-Dapper automatically handles arrays/lists for SQL `IN` statements.
+Dapper automatically expands any `IEnumerable` passed as a parameter into a comma-separated list.
 
 ```csharp
 var ids = new[] { 1, 2, 3 };
-connection.Query<User>("SELECT * FROM Users WHERE Id IN @ids", new { ids });
+var users = connection.Query<User>("SELECT * FROM Users WHERE Id IN @ids", new { ids });
 
 ```
 
@@ -62,67 +57,87 @@ connection.Query<User>("SELECT * FROM Users WHERE Id IN @ids", new { ids });
 
 ## 3. Table-Valued Parameters (TVP)
 
-TVPs allow passing a structured table to SQL Server in a single call.
+TVPs allow passing a structured "table" of data to a Stored Procedure, which is much faster than running loops of individual inserts.
 
-### Step 1: SQL Type
+### Step 1: SQL Setup
 
 ```sql
-CREATE TYPE dbo.MyTableType AS TABLE (Id INT, Val NVARCHAR(50));
+-- Create the Type in the database
+CREATE TYPE dbo.UserType AS TABLE (
+    UserId INT,
+    UserName NVARCHAR(50)
+);
 
 ```
 
 ### Step 2: C# Implementation
 
 ```csharp
-var table = new DataTable();
-table.Columns.Add("Id", typeof(int));
-table.Columns.Add("Val", typeof(string));
-table.Rows.Add(1, "Sample Data");
+var dt = new DataTable();
+dt.Columns.Add("UserId", typeof(int));
+dt.Columns.Add("UserName", typeof(string));
+dt.Rows.Add(1, "Alice");
+dt.Rows.Add(2, "Bob");
 
 var p = new DynamicParameters();
-p.Add("@MyTVP", table.AsTableValuedParameter("dbo.MyTableType"));
+p.Add("@MyTableParam", dt.AsTableValuedParameter("dbo.UserType"));
 
-connection.Execute("sp_YourProcedure", p, commandType: CommandType.StoredProcedure);
+connection.Execute("sp_BulkUpdate", p, commandType: CommandType.StoredProcedure);
 
 ```
 
 ---
 
-## 4. Advanced Mapping
+## 4. Advanced Mapping Features
 
 ### Multi-Mapping (Joins)
 
-Maps joined data into nested objects.
+Maps a single row to multiple nested objects. The `splitOn` parameter tells Dapper where the next object starts.
 
 ```csharp
-var sql = "SELECT * FROM Posts p JOIN Users u ON p.OwnerId = u.Id";
-var data = conn.Query<Post, User, Post>(sql, (post, user) => {
+var sql = "SELECT * FROM Posts p JOIN Users u ON p.AuthorId = u.Id";
+var posts = conn.Query<Post, User, Post>(sql, (post, user) => {
     post.Author = user;
     return post;
 }, splitOn: "Id");
 
 ```
 
-### Literal Tokens
+### Multiple Result Sets
 
-Use `{=Property}` for dynamic values that cannot be parameterized (e.g., Table Names).
+Fetch different types of data in a single database round-trip.
 
 ```csharp
-var sql = "SELECT * FROM {=TableName} WHERE Status = @s";
-conn.Query(sql, new { TableName = "Orders", s = 1 });
+var sql = "SELECT * FROM Orders; SELECT * FROM Customers;";
+using (var multi = connection.QueryMultiple(sql))
+{
+    var orders = multi.Read<Order>().ToList();
+    var customers = multi.Read<Customer>().ToList();
+}
+
+```
+
+### Literal Tokens
+
+Used for values that cannot be parameterized by standard SQL, like table names.
+
+```csharp
+var sql = "SELECT * FROM {=TableName} WHERE Id = @id";
+conn.Query(sql, new { TableName = "Products", id = 1 });
 
 ```
 
 ---
 
-## 5. Best Practices
+## 5. Performance Best Practices
 
-* **Buffering:** For massive datasets, use `buffered: false` in `Query` to stream rows instead of loading them all into RAM.
-* **Transactions:** Dapper supports transactions: `connection.Execute(sql, params, transaction: myTrans)`.
-* **Async:** Always use `Async` methods in web APIs to improve scalability.
+* **Use Async:** In web environments, use `QueryAsync` to keep threads free.
+* **Buffered Queries:** Set `buffered: false` for massive datasets to stream rows one-by-one and save memory.
+* **Transactions:** Dapper works with `IDbTransaction`. Always pass the transaction object: `conn.Execute(sql, param, transaction: myTrans)`.
+* **Stored Procedures:** Explicitly define `commandType: CommandType.StoredProcedure` when calling procedures.
 
 ```
 
-**Would you like me to add a section on how to handle Dapper Transactions with a `TransactionScope`?**
+Would you like me to provide a sample **Generic Repository** implementation using these Dapper patterns?
 
 ```
